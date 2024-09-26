@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phishing Detection System</title>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #0d0d0d;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        h1 {
+            text-align: center;
+            color: #00d4ff;
+            font-size: 2.5rem;
+            margin-bottom: 30px;
+            letter-spacing: 2px;
+        }
+        form {
+            background-color: #1a1a1a;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.4);
+            width: 100%;
+            max-width: 500px;
+        }
+        label {
+            font-size: 1.2rem;
+            color: #00d4ff;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            background-color: #333;
+            color: #e0e0e0;
+            resize: none;
+            font-size: 1rem;
+            margin-top: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: #00d4ff;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #0d0d0d;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        button:hover {
+            background-color: #00a6cc;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #1a1a1a;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            color: #00ff9f;
+            box-shadow: 0 0 15px rgba(0, 255, 159, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <form id="emailForm">
+        <h1>AI-Based Phishing Detection System</h1>
+        <label for="email">Enter Email Text:</label><br>
+        <textarea id="email" name="email" rows="5" cols="40" required></textarea><br>
+        <button type="submit">Check</button>
+        <div id="result"></div>
+    </form>
+
+    <script>
+        document.getElementById('emailForm').onsubmit = async function(event) {
+            event.preventDefault();
+            const emailText = document.getElementById('email').value;
+    
+            const response = await fetch('/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    'email': emailText
+                })
+            });
+    
+            const result = await response.json();
+            let formattedResult = '';
+            let phishingCount = 0;
+            let legitimateCount = 0;
+    
+            // Loop through each model's result
+            for (const [model, prediction] of Object.entries(result)) {
+                formattedResult += `${model}: ${prediction}\n`;
+    
+                // Count the number of Phishing and Legitimate results
+                if (prediction === 'Phishing') {
+                    phishingCount++;
+                } else if (prediction === 'Legitimate') {
+                    legitimateCount++;
+                }
+            }
+    
+            // Determine the final result based on majority
+            let finalResult = '';
+            if (phishingCount >= 3) {
+                finalResult = 'Final Verdict: Phishing';
+            } else {
+                finalResult = 'Final Verdict: Legitimate';
+            }
+    
+            // Display the formatted model results and the final verdict
+            document.getElementById('result').innerText = formattedResult + '\n' + finalResult;
+        }
+    </script>
+</body>
+</html>
