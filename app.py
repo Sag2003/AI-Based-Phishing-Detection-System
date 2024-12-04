@@ -5,6 +5,9 @@ import pickle
 import torch
 import torch.nn as nn
 import tensorflow as tf
+import re
+import requests
+import base64
 
 # Check for CUDA
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -16,6 +19,9 @@ with open('tokenizer.pkl', 'rb') as tokenizer_file:
 
 # Define maximum length for inputs
 max_length = 1000  # Set this according to your model's expected input length
+
+# VirusTotal API key
+VIRUSTOTAL_API_KEY = '18808001f13a70f6395c527d42962e7c0542c6b05e6513f28c931aea88dcb7ae'  # Replace with your VirusTotal API key
 
 # Define CNN Model using PyTorch
 class CNNModel(nn.Module):
@@ -79,36 +85,51 @@ embedding_dim = 128
 hidden_dim = 64
 
 cnn_model = CNNModel(vocab_size=vocab_size, embedding_dim=embedding_dim).to(device)
-cnn_model.load_state_dict(torch.load('cnn_model.pth', map_location=device))
+cnn_model.load_state_dict(torch.load('cnn_model.pth', map_location=device, weights_only=True))
 cnn_model.eval()
 
 lstm_model = LSTMModel(vocab_size=vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim).to(device)
-lstm_model.load_state_dict(torch.load('lstm_model.pth', map_location=device))
+lstm_model.load_state_dict(torch.load('lstm_model.pth', map_location=device, weights_only=True))
 lstm_model.eval()
 
 rnn_model = RNNModel(vocab_size=vocab_size, embedding_dim=embedding_dim, hidden_dim=hidden_dim).to(device)
-rnn_model.load_state_dict(torch.load('rnn_model.pth', map_location=device))
+rnn_model.load_state_dict(torch.load('rnn_model.pth', map_location=device, weights_only=True))
 rnn_model.eval()
 
 app = Flask(__name__)
 
-# Route for the main page (index.html)
-@app.route("/")
-def index():
-    return render_template("index.html")
+def check_virustotal_links(email_text):
+    # Extract links from the email text
+    links = re.findall(r'(https?://\S+)', email_text)
+    for link in links:
+        # Encode the link for VirusTotal API
+        encoded_link = base64.urlsafe_b64encode(link.encode()).decode().strip('=')
+        url = f"https://www.virustotal.com/api/v3/urls/{encoded_link}"
+        headers = {'x-apikey': VIRUSTOTAL_API_KEY}
+        
+        response = requests.get(url, headers=headers)
+        
+        if response.status_code == 200:
+            data = response.json()
+            analysis_results = data.get("data", {}).get("attributes", {}).get("last_analysis_results", {})
+            for result in analysis_results.values():
+                if result.get("category") in ["malicious", "phishing"]:
+                    return "VirusTotal: Malicious/Phishing"
+    return "VirusTotal: Clean"
 
-# Route for the About page (about.html)
-@app.route("/about")
+@app.route('/')
+def home():
+    return render_template('index.html')
+
+@app.route('/about')
 def about():
-    return render_template("about.html")
+    return render_template('about.html')
 
-# Route for the Team Members page (team.html)
-@app.route("/team")
+@app.route('/team')
 def team():
-    return render_template("team.html")
+    return render_template('team.html')
 
-# Route to handle predictions
-@app.route("/predict", methods=["POST"])
+@app.route('/predict', methods=['POST'])
 def predict():
     email_text = request.form['email']
 
@@ -117,28 +138,48 @@ def predict():
     email_padded = tf.keras.preprocessing.sequence.pad_sequences(email_seq, padding='post', maxlen=max_length)
     email_tensor = torch.tensor(email_padded, dtype=torch.long).to(device)
 
-    # LSTM Prediction
-    lstm_prediction = lstm_model(email_tensor)
-    lstm_result = "Phishing" if lstm_prediction.item() > 0.5 else "Legitimate"
-
-    # CNN Prediction
-    if email_tensor.size(1) < 3:  # Less than kernel size
-        cnn_result = "Input too short for CNN"
+    # VirusTotal Link Check
+    virustotal_result = check_virustotal_links(email_text)
+    
+    # If VirusTotal flags the link as malicious/phishing, force the Final Verdict to Phishing
+    if virustotal_result == "VirusTotal: Malicious/Phishing":
+        final_verdict = "Phishing"
+        lstm_result = "Phishing"
+        cnn_result = "Phishing"
+        rnn_result = "Phishing"
     else:
-        cnn_prediction = cnn_model(email_tensor)
-        cnn_result = "Phishing" if cnn_prediction.item() > 0.5 else "Legitimate"
+        # LSTM Prediction
+        lstm_prediction = lstm_model(email_tensor)
+        lstm_result = "Phishing" if lstm_prediction.item() > 0.5 else "Legitimate"
 
-    # RNN Prediction
-    rnn_prediction = rnn_model(email_tensor)
-    rnn_result = "Phishing" if rnn_prediction.item() > 0.5 else "Legitimate"
+        # CNN Prediction
+        if email_tensor.size(1) < 3:  # Less than kernel size
+            cnn_result = "Input too short for CNN"
+        else:
+            cnn_prediction = cnn_model(email_tensor)
+            cnn_result = "Phishing" if cnn_prediction.item() > 0.5 else "Legitimate"
 
+        # RNN Prediction
+        rnn_prediction = rnn_model(email_tensor)
+        rnn_result = "Phishing" if rnn_prediction.item() > 0.5 else "Legitimate"
+
+        # Determine final verdict based on majority voting
+        predictions = [lstm_result, cnn_result, rnn_result]
+        final_verdict = "Phishing" if predictions.count("Phishing") > predictions.count("Legitimate") else "Legitimate"
+
+    # Prepare the results dictionary with Final Verdict only once
     results = {
+        "VirusTotal": virustotal_result,
         "LSTM": lstm_result,
         "CNN": cnn_result,
         "RNN": rnn_result
     }
 
+    # Add Final Verdict if not already set by VirusTotal
+    if virustotal_result != "VirusTotal: Malicious/Phishing":
+        results["Final Verdict"] = final_verdict
+
     return jsonify(results)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
