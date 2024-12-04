@@ -10,18 +10,24 @@
             background-color: #0d0d0d;
             color: #e0e0e0;
             margin: 0;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
+            padding: 0;
         }
-        h1 {
-            text-align: center;
+        nav {
+            background-color: #1a1a1a;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: space-around;
+        }
+        nav a {
             color: #00d4ff;
-            font-size: 2.5rem;
-            margin-bottom: 30px;
-            letter-spacing: 2px;
+            text-decoration: none;
+            font-size: 1.2rem;
+            font-weight: bold;
+            transition: color 0.3s ease;
+        }
+        nav a:hover {
+            color: #00a6cc;
         }
         form {
             background-color: #1a1a1a;
@@ -30,6 +36,14 @@
             box-shadow: 0 0 15px rgba(0, 212, 255, 0.4);
             width: 100%;
             max-width: 500px;
+            margin: 50px auto;
+        }
+        h1 {
+            text-align: center;
+            color: #00d4ff;
+            font-size: 2.5rem;
+            margin-bottom: 30px;
+            letter-spacing: 2px;
         }
         label {
             font-size: 1.2rem;
@@ -72,10 +86,16 @@
             font-size: 1.1rem;
             color: #00ff9f;
             box-shadow: 0 0 15px rgba(0, 255, 159, 0.4);
+            white-space: pre-wrap;
         }
     </style>
 </head>
 <body>
+    <nav>
+        <a href="/about">About</a>
+        <a href="/">AI Page</a>
+        <a href="/team">Team Members</a>
+    </nav>
     <form id="emailForm">
         <h1>AI-Based Phishing Detection System</h1>
         <label for="email">Enter Email Text:</label><br>
@@ -88,7 +108,7 @@
         document.getElementById('emailForm').onsubmit = async function(event) {
             event.preventDefault();
             const emailText = document.getElementById('email').value;
-    
+
             const response = await fetch('/predict', {
                 method: 'POST',
                 headers: {
@@ -98,34 +118,29 @@
                     'email': emailText
                 })
             });
-    
+
             const result = await response.json();
             let formattedResult = '';
             let phishingCount = 0;
             let legitimateCount = 0;
-    
-            // Loop through each model's result
+
             for (const [model, prediction] of Object.entries(result)) {
                 formattedResult += `${model}: ${prediction}\n`;
-    
-                // Count the number of Phishing and Legitimate results
                 if (prediction === 'Phishing') {
                     phishingCount++;
-                } else if (prediction === 'Legitimate') {
+                } else {
                     legitimateCount++;
                 }
             }
-    
-            // Determine the final result based on majority
+
             let finalResult = '';
-            if (phishingCount >= 3) {
+            if (phishingCount >= 2) {
                 finalResult = 'Final Verdict: Phishing';
             } else {
                 finalResult = 'Final Verdict: Legitimate';
             }
-    
-            // Display the formatted model results and the final verdict
-            document.getElementById('result').innerText = formattedResult + '\n' + finalResult;
+
+            document.getElementById('result').innerText = formattedResult + finalResult;
         }
     </script>
 </body>
