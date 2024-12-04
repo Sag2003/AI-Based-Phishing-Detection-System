@@ -21,7 +21,7 @@ with open('tokenizer.pkl', 'rb') as tokenizer_file:
 max_length = 1000  # Set this according to your model's expected input length
 
 # VirusTotal API key
-VIRUSTOTAL_API_KEY = '18808001f13a70f6395c527d42962e7c0542c6b05e6513f28c931aea88dcb7ae'  # Replace with your VirusTotal API key
+VIRUSTOTAL_API_KEY = 'Key Here'  # Replace with your VirusTotal API key
 
 # Define CNN Model using PyTorch
 class CNNModel(nn.Module):
